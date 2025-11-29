@@ -1,0 +1,85 @@
+@page "/fetchproducts"
+
+@using ClientApp.Models
+@inject ClientApp.Services.IProductApiService ProductApi
+@inject Microsoft.Extensions.Logging.ILogger<FetchProducts> Logger
+
+<h3>Product List</h3>
+
+<ul>
+   @if (isLoading)
+    {
+        <li>Loading...</li>
+    }
+    else if (products != null)
+    {
+        foreach (var product in products)
+        {
+            <li>@product.Name - $@product.Price</li>
+        }
+    }
+    else if (loadingError != null)
+    {
+        <li style="color:crimson">Error: @loadingError</li>
+    }
+    else if (loadingError != null)
+    {
+        <li style="color:crimson">Error: @loadingError</li>
+    }
+    else
+    {
+        <li>No products available.</li>
+    }
+</ul>
+
+@code {
+    private Product[]? products;
+    private string? loadingError;
+    private bool isLoading = true;
+    private System.Threading.CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new System.Threading.CancellationTokenSource();
+        isLoading = true;
+
+        try
+        {
+            var result = await ProductApi.GetProductsAsync(_cts.Token);
+            if (result.Success)
+            {
+                products = result.Data;
+            }
+            else
+            {
+                // Safely display user-friendly messages from the service; avoid raw exception text.
+                loadingError = result.ErrorMessage ?? "Unknown error fetching products.";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Logger?.LogInformation("Product load cancelled.");
+            loadingError = "Request was cancelled.";
+        }
+        catch (Exception ex)
+        {
+            // Very defensive catch to ensure nothing bubbles up to browser console
+            Logger?.LogError(ex, "Unhandled exception in FetchProducts page");
+            loadingError = "An unexpected error occurred while loading products.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
+        catch { }
+    }
+}
